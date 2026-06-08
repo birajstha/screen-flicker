@@ -1,13 +1,12 @@
 <script>
   let frequency = 10;
+  let sliderMax = 120;
   let fgColor = '#000000';
   let bgColor = '#ffffff';
   let isPlaying = false;
   let flickerInterval = null;
   let isOn = false;
-  let isFullscreen = false;
   let theme = 'dark';
-  let fullscreenContainer;
 
   import { onMount, onDestroy } from 'svelte';
 
@@ -27,7 +26,16 @@
   function startFlicker() {
     isPlaying = true;
     isOn = true;
-    toggleFlicker();
+    restartFlickerInterval();
+  }
+
+  function restartFlickerInterval() {
+    if (!Number.isFinite(frequency) || frequency <= 0) {
+      return;
+    }
+    if (flickerInterval) {
+      clearInterval(flickerInterval);
+    }
     flickerInterval = setInterval(toggleFlicker, 1000 / (frequency * 2));
   }
 
@@ -37,6 +45,7 @@
 
   function stopFlicker() {
     isPlaying = false;
+    isOn = false;
     if (flickerInterval) {
       clearInterval(flickerInterval);
       flickerInterval = null;
@@ -48,63 +57,37 @@
     else startFlicker();
   }
 
-  function toggleFullscreen() {
-    if (!document.fullscreenElement) {
-      fullscreenContainer.requestFullscreen();
-      isFullscreen = true;
-    } else {
-      document.exitFullscreen();
-      isFullscreen = false;
-    }
-  }
-
-  function onFsChange() {
-    isFullscreen = !!document.fullscreenElement;
-    if (!isFullscreen && !isPlaying) {
-      // Reset view when exiting fullscreen
-    }
-  }
-
   onDestroy(() => {
     stopFlicker();
-    document.removeEventListener('fullscreenchange', onFsChange);
   });
 
-  $: flickerStyle = {
-    background: isOn ? fgColor : bgColor,
-    transition: 'none'
-  };
+  $: flickerStyle = `background:${isOn ? fgColor : bgColor};transition:none;`;
+
+  $: if (isPlaying && frequency > 0) {
+    restartFlickerInterval();
+  }
+
+  $: if (frequency > sliderMax) {
+    sliderMax = Math.ceil(frequency);
+  }
 
   $: freqDisplay = frequency < 1 ? frequency.toFixed(1) : Math.round(frequency);
 
-  import { onMount as onM } from 'svelte';
-  // Re-attach listener on mount
-  import { afterUpdate } from 'svelte';
-  afterUpdate(() => {
-    if (fullscreenContainer) {
-      document.addEventListener('fullscreenchange', onFsChange);
-    }
-  });
 </script>
 
 <div class="app-container">
   <!-- Header -->
   <div class="header">
-    <div class="header-left">
-      <a href="/" class="home-link">← Home</a>
-    </div>
-    <div class="header-center">
-      <h1>SCREEN FLICKER</h1>
-    </div>
+    <h1>SCREEN FLICKER</h1>
     <div class="header-right">
       <button class="theme-btn" on:click={toggleTheme} aria-label="Toggle theme">
         {#if theme === 'dark'}
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="4"></circle>
             <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
           </svg>
         {:else}
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
             <path d="M20.354 15.354A9 9 0 018.646 3.646 9 9 0 1012 21a8.96 8.96 0 008.354-5.646z"></path>
           </svg>
         {/if}
@@ -118,11 +101,19 @@
     <div class="control-group">
       <label class="control-label">Flicker Frequency</label>
       <div class="slider-row">
-        <input type="range" min="0.5" max="60" step="0.5" bind:value={frequency} />
+        <input type="range" min="0.5" max={sliderMax} step="0.5" bind:value={frequency} />
         <span class="value-badge">{freqDisplay} Hz</span>
       </div>
+      <div class="freq-input-row">
+        <label for="frequency-input">Frequency (Hz)</label>
+        <input id="frequency-input" type="number" min="0.1" step="0.1" bind:value={frequency} />
+      </div>
+      <div class="freq-input-row">
+        <label for="slider-max-input">Slider max (Hz)</label>
+        <input id="slider-max-input" type="number" min="1" step="1" bind:value={sliderMax} />
+      </div>
       <div class="freq-markers">
-        <span>0.5</span><span>10</span><span>20</span><span>30</span><span>60</span>
+        <span>0.5</span><span>{Math.round(sliderMax * 0.25)}</span><span>{Math.round(sliderMax * 0.5)}</span><span>{Math.round(sliderMax * 0.75)}</span><span>{Math.round(sliderMax)}</span>
       </div>
     </div>
 
@@ -154,27 +145,17 @@
       <button class="play-btn" class:playing={isPlaying} on:click={togglePlay}>
         {isPlaying ? '■ STOP' : '▶ START'}
       </button>
-      <button class="fullscreen-btn" on:click={toggleFullscreen}>
-        {isFullscreen ? '⊞ Exit Fullscreen' : '⊞ Fullscreen'}
-      </button>
     </div>
 
     <!-- Preview Area -->
     <div class="control-group preview-group">
       <label class="control-label">Preview</label>
-      <div class="preview-area" style={flickerStyle}></div>
+      <p class="preview-help">Drag the bottom-right corner to resize the preview.</p>
+      <div class="preview-resizer">
+        <div class="preview-area" style={flickerStyle}></div>
+      </div>
     </div>
   </div>
-</div>
-
-<!-- Fullscreen Flicker Overlay -->
-<div class="flicker-overlay" style={flickerStyle} class:visible={isPlaying} bind:this={fullscreenContainer}>
-  {#if isPlaying && !isFullscreen}
-    <div class="overlay-hint">Press fullscreen for best effect</div>
-  {/if}
-  {#if isPlaying && isFullscreen}
-    <div class="overlay-close" on:click={stopFlicker}>✕ Stop</div>
-  {/if}
 </div>
 
 <style>
@@ -193,16 +174,6 @@
     margin-bottom: 32px;
   }
 
-  .header-left, .header-right { flex: 1; }
-  .header-center { text-align: center; }
-
-  .home-link {
-    color: var(--accent);
-    text-decoration: none;
-    font-size: 0.85rem;
-  }
-  .home-link:hover { color: var(--accent-hover); }
-
   h1 {
     font-size: 1.1rem;
     font-weight: 700;
@@ -216,14 +187,24 @@
     border-radius: 999px;
     width: 32px;
     height: 32px;
+    padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     color: var(--text-primary);
     cursor: pointer;
     margin-left: auto;
+    line-height: 0;
   }
   .theme-btn:hover { border-color: var(--accent); }
+
+  .theme-btn svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    pointer-events: none;
+  }
 
   .controls-panel {
     display: flex;
@@ -271,6 +252,26 @@
     font-size: 0.65rem;
     color: var(--text-secondary);
     padding: 0 2px;
+  }
+
+  .freq-input-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 8px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .freq-input-row input {
+    width: 120px;
+    background: var(--surface-2);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-size: 0.85rem;
   }
 
   .color-row {
@@ -336,83 +337,36 @@
     background: #c82333;
   }
 
-  .fullscreen-btn {
-    padding: 14px 18px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    border-radius: 12px;
-    background: var(--surface-2);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
-    transition: all 0.2s;
-    white-space: nowrap;
-  }
-
-  .fullscreen-btn:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-
   .preview-group {
     margin-bottom: 0;
   }
 
+  .preview-help {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+  }
+
+  .preview-resizer {
+    width: 100%;
+    min-height: 120px;
+    max-height: 60vh;
+    resize: both;
+    overflow: auto;
+    border: 1px dashed var(--border-color);
+    border-radius: 8px;
+  }
+
   .preview-area {
     width: 100%;
-    height: 120px;
+    height: 100%;
+    min-height: 120px;
     border-radius: 8px;
-    border: 1px solid var(--border-color);
-  }
-
-  .flicker-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    z-index: 9999;
-    display: none;
-    cursor: pointer;
-  }
-
-  .flicker-overlay.visible {
-    display: block;
-  }
-
-  .overlay-hint {
-    position: absolute;
-    bottom: 24px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0,0,0,0.6);
-    color: white;
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-size: 0.8rem;
-    pointer-events: none;
-  }
-
-  .overlay-close {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    background: rgba(0,0,0,0.6);
-    color: white;
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    z-index: 10000;
-    border: none;
-  }
-
-  .overlay-close:hover {
-    background: rgba(220,53,69,0.8);
+    border: 1px solid transparent;
   }
 
   @media (max-width: 480px) {
     .action-row { flex-direction: column; }
-    .fullscreen-btn { width: 100%; }
+    .play-btn { width: 100%; }
   }
 </style>
